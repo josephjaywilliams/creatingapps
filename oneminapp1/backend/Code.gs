@@ -210,21 +210,38 @@ function sendDue() {
       log_('', 'error', '', 'daily email quota used up');
       return;
     }
-    const prompt = pickPrompt_(r);
-    const flow = flowFor_(r);
-    try {
-      sendPrompt_(r, prompt, flow);
-    } catch (err) {
-      log_(r.id, 'error', prompt.id, String(err));
-      continue;
-    }
-    r.day = Number(r.day) + 1;
-    r.lastSent = today;
-    r.recent = [prompt.id].concat(String(r.recent || '').split(',').filter(Boolean)).slice(0, 6).join(',');
-    if (r.day >= PROGRAM_DAYS) r.status = 'completed';
-    sh.getRange(i + 1, 1, 1, SUBSCRIBERS.length).setValues([objRow_(r)]);
-    log_(r.id, 'sent', prompt.id, flow + ' day ' + r.day);
+    sendNext_(sh, i, r, today);
   }
+}
+
+// For testing: pick this in the Apps Script editor and click Run. It sends the next prompt
+// right away to your own sign-up (the Google account running the script), ignoring the time window.
+function sendNowForTesting() {
+  const me = Session.getActiveUser().getEmail().toLowerCase();
+  const sh = sheet_('subscribers', SUBSCRIBERS);
+  const rows = sh.getDataRange().getValues();
+  const i = rows.findIndex((row, n) => n > 0 && row[SUBSCRIBERS.indexOf('email')] === me);
+  if (i < 1) throw new Error('No sign-up for ' + me + '. Sign up on the site with this address first.');
+  const r = rowObj_(rows[i]);
+  if (r.status !== 'active') throw new Error('Your sign-up is "' + r.status + '". Click the link in the confirmation email first.');
+  sendNext_(sh, i, r, Utilities.formatDate(new Date(), r.timezone, 'yyyy-MM-dd'));
+}
+
+function sendNext_(sh, i, r, today) {
+  const prompt = pickPrompt_(r);
+  const flow = flowFor_(r);
+  try {
+    sendPrompt_(r, prompt, flow);
+  } catch (err) {
+    log_(r.id, 'error', prompt.id, String(err));
+    return;
+  }
+  r.day = Number(r.day) + 1;
+  r.lastSent = today;
+  r.recent = [prompt.id].concat(String(r.recent || '').split(',').filter(Boolean)).slice(0, 6).join(',');
+  if (r.day >= PROGRAM_DAYS) r.status = 'completed';
+  sh.getRange(i + 1, 1, 1, SUBSCRIBERS.length).setValues([objRow_(r)]);
+  log_(r.id, 'sent', prompt.id, flow + ' day ' + r.day);
 }
 
 // Rotate through the person's chosen areas and avoid their last few prompts.
