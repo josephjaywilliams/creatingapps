@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>One Minute</title>
+  <meta name="description" content="One small, one-minute action a day for your body and mind, by email. Based on research from Joseph Jay Williams's lab.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">One Minute</p>
+    <h1>One minute a day.<br>That's the whole commitment.</h1>
+    <p class="lede">Get one tiny action by email each day for two weeks: a stretch, a glass of water, a still breath.
+      Each one takes about sixty seconds, needs no app, and works even on low-energy days.</p>
+    <a class="btn" href="#join">Sign up free</a>
+
+    <h2>Here's what one looks like</h2>
+    <div class="card" id="example" aria-live="polite"></div>
+    <p><button class="btn ghost" id="another" type="button">Show another</button></p>
+
+    <h2>How it works</h2>
+    <div class="how">
+      <div class="card"><b>1. Pick your areas</b><span class="muted">Move, calm, food and water, or screen breaks.</span></div>
+      <div class="card"><b>2. Pick a time</b><span class="muted">Morning, afternoon, or evening, in your time zone.</span></div>
+      <div class="card"><b>3. Do one minute</b><span class="muted">Tap "I did it", or rewrite the prompt to suit you.</span></div>
+    </div>
+
+    <h2 id="join">Sign up</h2>
+    <form class="card" id="form" novalidate>
+      <label for="name">First name <span class="muted small">(optional)</span></label>
+      <input type="text" id="name" name="name" autocomplete="given-name" maxlength="80">
+
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" autocomplete="email" required>
+
+      <label id="areas-label">What would you like to work on?</label>
+      <div class="chips" role="group" aria-labelledby="areas-label" id="areas"></div>
+
+      <label id="window-label">When should your minute arrive?</label>
+      <div class="chips" role="radiogroup" aria-labelledby="window-label">
+        <label class="chip"><input type="radio" name="window" value="morning" checked><span>Morning · 10–12</span></label>
+        <label class="chip"><input type="radio" name="window" value="afternoon"><span>Afternoon · 3–6</span></label>
+        <label class="chip"><input type="radio" name="window" value="evening"><span>Evening · 7–10</span></label>
+      </div>
+
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <label class="check"><input type="checkbox" id="consent" required>
+        <span class="small">I agree to receive one email a day for 14 days. My name, email, and which prompts I complete
+          are stored in a Google Sheet run by the One Minute team and used to improve the prompts. I can stop any time
+          with one click.</span></label>
+
+      <p style="margin:24px 0 0"><button class="btn" id="submit" type="submit">Send me my first minute</button></p>
+      <p class="small" id="status" role="status"></p>
+    </form>
+
+    <footer>
+      Based on <a href="https://arxiv.org/abs/2605.29051">"Designing for the Moment: How One-Minute Interventions Fit or
+      Falter Across Domains"</a> (Hassanzadeh et al., 2026) from Joseph Jay Williams's lab at the University of Toronto.
+      Not medical advice.
+    </footer>
+  </main>
+
+  <script src="prompts.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    // Example prompt card
+    let shown = -1;
+    function showExample() {
+      let i;
+      do { i = Math.floor(Math.random() * ACTIVITIES.length); } while (i === shown && ACTIVITIES.length > 1);
+      shown = i;
+      const a = ACTIVITIES[i];
+      document.getElementById("example").innerHTML =
+        `<span class="tag">${esc(DOMAINS[a.domain].long)}</span>
+         <h3 style="margin:12px 0 6px">${esc(a.title)}</h3>
+         <p style="margin:0">${esc(a.action)}</p>
+         <ol class="steps">${a.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+         <p class="muted small" style="margin:0">${esc(a.benefit)}</p>`;
+    }
+    document.getElementById("another").onclick = showExample;
+    showExample();
+
+    // Area chips
+    document.getElementById("areas").innerHTML = Object.entries(DOMAINS).map(([key, d]) =>
+      `<label class="chip"><input type="checkbox" name="areas" value="${key}" checked><span>${esc(d.long)}</span></label>`
+    ).join("");
+
+    // Sign-up
+    const form = document.getElementById("form");
+    const status = document.getElementById("status");
+    const submit = document.getElementById("submit");
+    if (!BACKEND_URL) {
+      submit.disabled = true;
+      status.textContent = "Sign-ups are opening soon.";
+    }
+    form.onsubmit = async e => {
+      e.preventDefault();
+      const email = form.email.value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { status.textContent = "Please enter a valid email address."; form.email.focus(); return; }
+      const areas = [...form.querySelectorAll("input[name=areas]:checked")].map(i => i.value);
+      if (!areas.length) { status.textContent = "Pick at least one area."; return; }
+      if (!form.consent.checked) { status.textContent = "Please tick the box to agree to the daily emails."; return; }
+      submit.disabled = true;
+      status.textContent = "Signing you up…";
+      try {
+        await post({
+          action: "signup",
+          name: form.name.value.trim(),
+          email,
+          areas,
+          window: form.querySelector("input[name=window]:checked").value,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          consent: true,
+          website: form.website.value,
+        });
+        form.innerHTML = `<h3 style="margin-top:0">Check your inbox</h3>
+          <p>We sent a confirmation link to <b>${esc(email)}</b>. Click it and your first minute arrives in your chosen window.</p>
+          <p class="muted small">Nothing there? Check spam, or wait a few minutes and try again.</p>`;
+      } catch (err) {
+        submit.disabled = false;
+        status.textContent = "Couldn't reach the server. Check your connection and try again.";
+      }
+    };
+  </script>
+</body>
+</html>

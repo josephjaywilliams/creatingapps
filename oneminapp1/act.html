@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>One Minute</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow"><a href="./" style="text-decoration:none">One Minute</a></p>
+    <div id="view" class="card"><p>One moment…</p></div>
+  </main>
+
+  <script src="prompts.js"></script>
+  <script src="config.js"></script>
+  <script>
+    // Email links land here and the page sends the action with JavaScript. Doing it this way,
+    // rather than linking straight to the backend, stops email link scanners from confirming
+    // sign-ups or logging "done" on someone's behalf.
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const q = new URLSearchParams(location.search);
+    const a = q.get("a"), s = q.get("s") || "", p = q.get("p") || "";
+    const prompt = ACTIVITIES.find(x => x.id === p);
+    const view = document.getElementById("view");
+    const show = html => { view.innerHTML = html; };
+    const failed = () => show(`<h1>Something went wrong</h1><p>We couldn't reach the server. Please try the link again in a minute.</p>`);
+
+    if (!BACKEND_URL || !s) {
+      show(`<h1>This link isn't complete</h1><p>Open it straight from your One Minute email.</p>`);
+    } else if (a === "confirm") {
+      post({ action: "confirm", s }).then(() => show(
+        `<h1>You're in 🎉</h1><p>Your first one-minute action arrives by email in the time window you picked.
+         Watch for an email titled <b>"Your one minute: …"</b>.</p>
+         <p class="muted small">Tip: add this sender to your contacts so it doesn't land in spam.</p>`), failed);
+    } else if (a === "done") {
+      post({ action: "done", s, p }).then(() => show(
+        `<h1>Nice. That's one minute well spent.</h1>
+         <p>${prompt ? `You did <b>${esc(prompt.title)}</b>. ` : ""}Small actions like this add up, and the hardest part is starting. See you tomorrow.</p>
+         <p><a href="act.html?a=rewrite&s=${encodeURIComponent(s)}&p=${encodeURIComponent(p)}">Want to rewrite this prompt in your own words?</a></p>`), failed);
+    } else if (a === "rewrite") {
+      show(`<h1>Make it yours</h1>
+        ${prompt ? `<p class="muted">The prompt you got:</p><blockquote style="margin:0 0 8px;padding-left:12px;border-left:3px solid var(--line)">${esc(prompt.action)}</blockquote>` : ""}
+        <label for="text">How would you say it, so it fits your day?</label>
+        <textarea id="text" maxlength="1000" placeholder="e.g. After I pour my morning coffee, roll my shoulders 10 times."></textarea>
+        <p><button class="btn" id="send">Send</button></p>`);
+      document.getElementById("send").onclick = () => {
+        const text = document.getElementById("text").value.trim();
+        if (!text) return;
+        post({ action: "rewrite", s, p, text }).then(() => show(
+          `<h1>Thank you</h1><p>Your version helps us write prompts that fit real days better.</p>`), failed);
+      };
+    } else if (a === "unsub") {
+      show(`<h1>Stop the daily emails?</h1><p>You won't get any more One Minute prompts.</p>
+        <p><button class="btn" id="stop">Yes, stop them</button></p>`);
+      document.getElementById("stop").onclick = () => post({ action: "unsub", s }).then(() => show(
+        `<h1>Done</h1><p>You won't get any more emails. You can <a href="./#join">sign up again</a> any time.</p>`), failed);
+    } else {
+      show(`<h1>This link isn't complete</h1><p>Open it straight from your One Minute email.</p>`);
+    }
+  </script>
+</body>
+</html>
